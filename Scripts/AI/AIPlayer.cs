@@ -183,7 +183,7 @@ namespace NineMensMorris.AI
             if (possibleMoves.Count == 0)
                 return;
             
-            AIMove bestMove = null;
+            AIMove? bestMove = null;
             
             switch (difficulty)
             {
@@ -197,10 +197,10 @@ namespace NineMensMorris.AI
                     break;
             }
             
-            if (bestMove != null)
+            if (bestMove.HasValue)
             {
-                gameManager.HandlePositionClicked(bestMove.fromPosition);
-                StartCoroutine(DelayedMove(bestMove.toPosition));
+                gameManager.HandlePositionClicked(bestMove.Value.fromPosition);
+                StartCoroutine(DelayedMove(bestMove.Value.toPosition));
             }
         }
         
@@ -318,8 +318,11 @@ namespace NineMensMorris.AI
             return validMoves;
         }
         
-        private AIMove GetBestMove(List<AIMove> possibleMoves)
+        private AIMove? GetBestMove(List<AIMove> possibleMoves)
         {
+            if (possibleMoves.Count == 0)
+                return null;
+            
             // Mill oluşturacak hamle
             foreach (var move in possibleMoves)
             {
