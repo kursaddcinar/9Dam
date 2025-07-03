@@ -93,11 +93,11 @@ namespace NineMensMorris.Core
             
             // 9 taş oyunu tahtasının pozisyonlarını oluştur
             // Dış kare (0-8)
-            Vector3[] outerSquare = CreateSquarePositions(Vector3.zero, 4f);
+            Vector2[] outerSquare = CreateSquarePositions(Vector2.zero, 4f);
             // Orta kare (9-16) 
-            Vector3[] middleSquare = CreateSquarePositions(Vector3.zero, 2.5f);
+            Vector2[] middleSquare = CreateSquarePositions(Vector2.zero, 2.5f);
             // İç kare (17-23)
-            Vector3[] innerSquare = CreateSquarePositions(Vector3.zero, 1f);
+            Vector2[] innerSquare = CreateSquarePositions(Vector2.zero, 1f);
             
             // Pozisyonları diziye ekle
             for (int i = 0; i < 8; i++)
@@ -109,41 +109,77 @@ namespace NineMensMorris.Core
             }
         }
         
-        private Vector3[] CreateSquarePositions(Vector3 center, float size)
+        private Vector2[] CreateSquarePositions(Vector2 center, float size)
         {
-            Vector3[] square = new Vector3[8];
+            Vector2[] square = new Vector2[8];
             float half = size / 2f;
             
-            // Köşeler
-            square[0] = center + new Vector3(-half, 0, -half); // Sol üst
-            square[1] = center + new Vector3(0, 0, -half);     // Üst orta
-            square[2] = center + new Vector3(half, 0, -half);  // Sağ üst
-            square[3] = center + new Vector3(half, 0, 0);      // Sağ orta
-            square[4] = center + new Vector3(half, 0, half);   // Sağ alt
-            square[5] = center + new Vector3(0, 0, half);      // Alt orta
-            square[6] = center + new Vector3(-half, 0, half);  // Sol alt
-            square[7] = center + new Vector3(-half, 0, 0);     // Sol orta
+            // Köşeler ve kenar ortaları (2D'de)
+            square[0] = center + new Vector2(-half, half);   // Sol üst
+            square[1] = center + new Vector2(0, half);       // Üst orta
+            square[2] = center + new Vector2(half, half);    // Sağ üst
+            square[3] = center + new Vector2(half, 0);       // Sağ orta
+            square[4] = center + new Vector2(half, -half);   // Sağ alt
+            square[5] = center + new Vector2(0, -half);      // Alt orta
+            square[6] = center + new Vector2(-half, -half);  // Sol alt
+            square[7] = center + new Vector2(-half, 0);      // Sol orta
             
             return square;
         }
         
-        private Transform CreatePosition(Vector3 position, int index)
+        private Transform CreatePosition(Vector2 position, int index)
         {
             GameObject posObj = new GameObject($"Position_{index}");
             posObj.transform.parent = transform;
-            posObj.transform.position = position;
+            posObj.transform.position = new Vector3(position.x, position.y, 0);
             
-            // Görsel marker ekle
-            GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            // Görsel marker ekle (2D sprite kullan)
+            GameObject marker = new GameObject("Marker");
             marker.transform.parent = posObj.transform;
             marker.transform.localPosition = Vector3.zero;
             marker.transform.localScale = Vector3.one * 0.2f;
             
-            // Collider ekle tıklama için
-            SphereCollider collider = marker.GetComponent<SphereCollider>();
+            // SpriteRenderer ekle
+            SpriteRenderer spriteRenderer = marker.AddComponent<SpriteRenderer>();
+            spriteRenderer.sprite = CreateCircleSprite();
+            spriteRenderer.color = Color.white;
+            
+            // 2D Collider ekle tıklama için
+            CircleCollider2D collider = marker.AddComponent<CircleCollider2D>();
             collider.radius = 0.5f;
             
             return posObj.transform;
+        }
+        
+        private Sprite CreateCircleSprite()
+        {
+            // Basit bir circle sprite oluştur
+            Texture2D texture = new Texture2D(64, 64);
+            Color[] pixels = new Color[64 * 64];
+            
+            Vector2 center = new Vector2(32, 32);
+            float radius = 30f;
+            
+            for (int x = 0; x < 64; x++)
+            {
+                for (int y = 0; y < 64; y++)
+                {
+                    float distance = Vector2.Distance(new Vector2(x, y), center);
+                    if (distance <= radius)
+                    {
+                        pixels[y * 64 + x] = Color.white;
+                    }
+                    else
+                    {
+                        pixels[y * 64 + x] = Color.clear;
+                    }
+                }
+            }
+            
+            texture.SetPixels(pixels);
+            texture.Apply();
+            
+            return Sprite.Create(texture, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f));
         }
         
         public bool IsPositionEmpty(int index)
@@ -206,30 +242,36 @@ namespace NineMensMorris.Core
             if (boardStones[fromIndex] == null || boardStones[toIndex] != null)
                 return false;
             
-            // Komşu pozisyonlar kontrolü
-            return ADJACENCY_MAP.ContainsKey(fromIndex) && 
-                   ADJACENCY_MAP[fromIndex].Contains(toIndex);
+            // Komşuluk kontrolü
+            if (ADJACENCY_MAP.ContainsKey(fromIndex))
+            {
+                return ADJACENCY_MAP[fromIndex].Contains(toIndex);
+            }
+            
+            return false;
         }
         
         public bool CheckForMill(int positionIndex, PlayerType playerType)
         {
-            foreach (int[] mill in MILL_PATTERNS)
+            foreach (var pattern in MILL_PATTERNS)
             {
-                if (mill.Contains(positionIndex))
+                if (pattern.Contains(positionIndex))
                 {
-                    bool isMillComplete = true;
-                    foreach (int pos in mill)
+                    bool isCompleteMill = true;
+                    foreach (int pos in pattern)
                     {
                         if (GetStoneOwner(pos) != playerType)
                         {
-                            isMillComplete = false;
+                            isCompleteMill = false;
                             break;
                         }
                     }
-                    if (isMillComplete)
+                    
+                    if (isCompleteMill)
                         return true;
                 }
             }
+            
             return false;
         }
         
@@ -246,7 +288,7 @@ namespace NineMensMorris.Core
         {
             for (int i = 0; i < 24; i++)
             {
-                if (GetStoneOwner(i) == playerType && !IsStoneInMill(i))
+                if (GetStoneOwner(i) == playerType && HasValidMoves(i))
                     return true;
             }
             return false;
@@ -256,18 +298,23 @@ namespace NineMensMorris.Core
         {
             for (int i = 0; i < 24; i++)
             {
-                if (GetStoneOwner(i) == playerType)
-                {
-                    if (ADJACENCY_MAP.ContainsKey(i))
-                    {
-                        foreach (int adjacent in ADJACENCY_MAP[i])
-                        {
-                            if (IsPositionEmpty(adjacent))
-                                return true;
-                        }
-                    }
-                }
+                if (GetStoneOwner(i) == playerType && HasValidMoves(i))
+                    return true;
             }
+            return false;
+        }
+        
+        private bool HasValidMoves(int fromIndex)
+        {
+            if (!ADJACENCY_MAP.ContainsKey(fromIndex))
+                return false;
+            
+            foreach (int toIndex in ADJACENCY_MAP[fromIndex])
+            {
+                if (IsPositionEmpty(toIndex))
+                    return true;
+            }
+            
             return false;
         }
         
@@ -278,32 +325,33 @@ namespace NineMensMorris.Core
             
             highlightedPositions[index] = highlight;
             
-            // Pozisyon görselini güncelle
             if (positions[index] != null)
             {
-                MeshRenderer renderer = positions[index].GetComponentInChildren<MeshRenderer>();
+                SpriteRenderer renderer = positions[index].GetComponentInChildren<SpriteRenderer>();
                 if (renderer != null)
                 {
-                    renderer.material = highlight ? highlightMaterial : normalMaterial;
+                    renderer.color = highlight ? Color.yellow : Color.white;
                 }
             }
         }
         
         public void HighlightValidMoves(int fromIndex)
         {
-            if (!ADJACENCY_MAP.ContainsKey(fromIndex))
+            if (!IsValidIndex(fromIndex) || !ADJACENCY_MAP.ContainsKey(fromIndex))
                 return;
             
-            foreach (int adjacent in ADJACENCY_MAP[fromIndex])
+            foreach (int toIndex in ADJACENCY_MAP[fromIndex])
             {
-                if (IsPositionEmpty(adjacent))
+                if (IsPositionEmpty(toIndex))
                 {
-                    if (positions[adjacent] != null)
+                    HighlightPosition(toIndex, true);
+                    
+                    if (positions[toIndex] != null)
                     {
-                        MeshRenderer renderer = positions[adjacent].GetComponentInChildren<MeshRenderer>();
+                        SpriteRenderer renderer = positions[toIndex].GetComponentInChildren<SpriteRenderer>();
                         if (renderer != null)
                         {
-                            renderer.material = validMoveMaterial;
+                            renderer.color = Color.green;
                         }
                     }
                 }
@@ -317,10 +365,10 @@ namespace NineMensMorris.Core
                 highlightedPositions[i] = false;
                 if (positions[i] != null)
                 {
-                    MeshRenderer renderer = positions[i].GetComponentInChildren<MeshRenderer>();
+                    SpriteRenderer renderer = positions[i].GetComponentInChildren<SpriteRenderer>();
                     if (renderer != null)
                     {
-                        renderer.material = normalMaterial;
+                        renderer.color = Color.white;
                     }
                 }
             }
@@ -345,13 +393,13 @@ namespace NineMensMorris.Core
         
         public List<int> GetAvailablePositions()
         {
-            List<int> available = new List<int>();
+            List<int> availablePositions = new List<int>();
             for (int i = 0; i < 24; i++)
             {
                 if (IsPositionEmpty(i))
-                    available.Add(i);
+                    availablePositions.Add(i);
             }
-            return available;
+            return availablePositions;
         }
     }
 } 

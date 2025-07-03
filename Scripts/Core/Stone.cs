@@ -5,10 +5,12 @@ namespace NineMensMorris.Core
     public class Stone : MonoBehaviour
     {
         [Header("Stone Settings")]
-        [SerializeField] private MeshRenderer meshRenderer;
-        [SerializeField] private Material player1Material;
-        [SerializeField] private Material player2Material;
-        [SerializeField] private Material highlightMaterial;
+        [SerializeField] private SpriteRenderer spriteRenderer;
+        [SerializeField] private Sprite player1Sprite;
+        [SerializeField] private Sprite player2Sprite;
+        [SerializeField] private Color player1Color = Color.white;
+        [SerializeField] private Color player2Color = Color.black;
+        [SerializeField] private Color highlightColor = Color.yellow;
         
         [Header("Animation")]
         [SerializeField] private float moveSpeed = 5f;
@@ -16,7 +18,7 @@ namespace NineMensMorris.Core
         [SerializeField] private AnimationCurve moveCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         
         private PlayerType owner;
-        private Material originalMaterial;
+        private Color originalColor;
         private bool isHighlighted;
         private Vector3 targetPosition;
         private bool isMoving;
@@ -28,8 +30,17 @@ namespace NineMensMorris.Core
         
         private void Awake()
         {
-            if (meshRenderer == null)
-                meshRenderer = GetComponent<MeshRenderer>();
+            if (spriteRenderer == null)
+                spriteRenderer = GetComponent<SpriteRenderer>();
+            
+            if (spriteRenderer == null)
+                spriteRenderer = gameObject.AddComponent<SpriteRenderer>();
+            
+            // Eğer sprite atanmamışsa varsayılan sprite oluştur
+            if (player1Sprite == null || player2Sprite == null)
+            {
+                CreateDefaultSprites();
+            }
         }
         
         private void Update()
@@ -47,10 +58,50 @@ namespace NineMensMorris.Core
             }
         }
         
+        private void CreateDefaultSprites()
+        {
+            // Varsayılan circle sprite oluştur
+            Sprite defaultSprite = CreateCircleSprite();
+            if (player1Sprite == null) player1Sprite = defaultSprite;
+            if (player2Sprite == null) player2Sprite = defaultSprite;
+        }
+        
+        private Sprite CreateCircleSprite()
+        {
+            Texture2D texture = new Texture2D(64, 64);
+            Color[] pixels = new Color[64 * 64];
+            
+            Vector2 center = new Vector2(32, 32);
+            float radius = 28f;
+            
+            for (int x = 0; x < 64; x++)
+            {
+                for (int y = 0; y < 64; y++)
+                {
+                    float distance = Vector2.Distance(new Vector2(x, y), center);
+                    if (distance <= radius)
+                    {
+                        // Gradient efekti için
+                        float alpha = 1f - (distance / radius) * 0.3f;
+                        pixels[y * 64 + x] = new Color(1f, 1f, 1f, alpha);
+                    }
+                    else
+                    {
+                        pixels[y * 64 + x] = Color.clear;
+                    }
+                }
+            }
+            
+            texture.SetPixels(pixels);
+            texture.Apply();
+            
+            return Sprite.Create(texture, new Rect(0, 0, 64, 64), new Vector2(0.5f, 0.5f));
+        }
+        
         public void Initialize(PlayerType playerType)
         {
             owner = playerType;
-            SetMaterial();
+            SetSpriteAndColor();
             SetScale(0f);
             AnimateScale(1f);
         }
@@ -58,22 +109,29 @@ namespace NineMensMorris.Core
         public void SetOwner(PlayerType playerType)
         {
             owner = playerType;
-            SetMaterial();
+            SetSpriteAndColor();
         }
         
-        private void SetMaterial()
+        private void SetSpriteAndColor()
         {
-            Material material = owner switch
-            {
-                PlayerType.Player1 => player1Material,
-                PlayerType.Player2 => player2Material,
-                _ => null
-            };
+            if (spriteRenderer == null) return;
             
-            if (material != null)
+            switch (owner)
             {
-                meshRenderer.material = material;
-                originalMaterial = material;
+                case PlayerType.Player1:
+                    spriteRenderer.sprite = player1Sprite;
+                    spriteRenderer.color = player1Color;
+                    originalColor = player1Color;
+                    break;
+                case PlayerType.Player2:
+                    spriteRenderer.sprite = player2Sprite;
+                    spriteRenderer.color = player2Color;
+                    originalColor = player2Color;
+                    break;
+                default:
+                    spriteRenderer.color = Color.white;
+                    originalColor = Color.white;
+                    break;
             }
         }
         
@@ -96,18 +154,18 @@ namespace NineMensMorris.Core
         
         public void SetHighlight(bool highlight)
         {
-            if (isHighlighted == highlight)
+            if (isHighlighted == highlight || spriteRenderer == null)
                 return;
                 
             isHighlighted = highlight;
             
             if (highlight)
             {
-                meshRenderer.material = highlightMaterial;
+                spriteRenderer.color = highlightColor;
             }
             else
             {
-                meshRenderer.material = originalMaterial;
+                spriteRenderer.color = originalColor;
             }
         }
         

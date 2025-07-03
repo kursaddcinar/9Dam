@@ -6,7 +6,6 @@ namespace NineMensMorris.Core
     {
         [Header("Input Settings")]
         [SerializeField] private LayerMask clickableLayers = -1;
-        [SerializeField] private float raycastDistance = 100f;
         
         private Camera mainCamera;
         private bool inputEnabled = true;
@@ -32,6 +31,7 @@ namespace NineMensMorris.Core
             
             HandleMouseInput();
             HandleKeyboardInput();
+            HandleTouchInput();
         }
         
         private void HandleMouseInput()
@@ -69,10 +69,13 @@ namespace NineMensMorris.Core
             if (mainCamera == null)
                 return;
             
-            Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
-            RaycastHit hit;
+            Vector2 mousePosition = Input.mousePosition;
+            Vector2 worldPosition = mainCamera.ScreenToWorldPoint(mousePosition);
             
-            if (Physics.Raycast(ray, out hit, raycastDistance, clickableLayers))
+            // 2D raycast kullan
+            RaycastHit2D hit = Physics2D.Raycast(worldPosition, Vector2.zero, 0f, clickableLayers);
+            
+            if (hit.collider != null)
             {
                 // BoardPosition kontrolü
                 BoardPosition boardPosition = hit.collider.GetComponent<BoardPosition>();
@@ -98,6 +101,34 @@ namespace NineMensMorris.Core
                 {
                     OnStoneClicked(stone);
                     return;
+                }
+            }
+            
+            // Eğer 2D raycast başarısız olursa, OverlapPoint kullan
+            Collider2D overlappedCollider = Physics2D.OverlapPoint(worldPosition, clickableLayers);
+            if (overlappedCollider != null)
+            {
+                BoardPosition boardPosition = overlappedCollider.GetComponent<BoardPosition>();
+                if (boardPosition == null)
+                {
+                    boardPosition = overlappedCollider.GetComponentInParent<BoardPosition>();
+                }
+                
+                if (boardPosition != null)
+                {
+                    OnPositionClicked?.Invoke(boardPosition.PositionIndex);
+                    return;
+                }
+                
+                Stone stone = overlappedCollider.GetComponent<Stone>();
+                if (stone == null)
+                {
+                    stone = overlappedCollider.GetComponentInParent<Stone>();
+                }
+                
+                if (stone != null)
+                {
+                    OnStoneClicked(stone);
                 }
             }
         }
@@ -127,7 +158,7 @@ namespace NineMensMorris.Core
             return inputEnabled;
         }
         
-        // Touch desteği için
+        // Touch desteği için (2D uyarlanmış)
         private void HandleTouchInput()
         {
             if (Input.touchCount > 0)
@@ -146,15 +177,16 @@ namespace NineMensMorris.Core
             if (mainCamera == null)
                 return;
             
-            Ray ray = mainCamera.ScreenPointToRay(screenPosition);
-            RaycastHit hit;
+            Vector2 worldPosition = mainCamera.ScreenToWorldPoint(screenPosition);
             
-            if (Physics.Raycast(ray, out hit, raycastDistance, clickableLayers))
+            // 2D touch için OverlapPoint kullan
+            Collider2D overlappedCollider = Physics2D.OverlapPoint(worldPosition, clickableLayers);
+            if (overlappedCollider != null)
             {
-                BoardPosition boardPosition = hit.collider.GetComponent<BoardPosition>();
+                BoardPosition boardPosition = overlappedCollider.GetComponent<BoardPosition>();
                 if (boardPosition == null)
                 {
-                    boardPosition = hit.collider.GetComponentInParent<BoardPosition>();
+                    boardPosition = overlappedCollider.GetComponentInParent<BoardPosition>();
                 }
                 
                 if (boardPosition != null)
